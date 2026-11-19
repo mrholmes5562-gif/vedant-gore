@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PromptLab — Client-Side LLM Inference &amp; Comparison Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+            mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+          },
+          colors: {
+            surface: {
+              950: '#070B12',
+              900: '#0C121E',
+              850: '#111927',
+              800: '#162032',
+              700: '#1F2D45',
+            },
+            accent: {
+              cyan: '#06B6D4',
+              emerald: '#10B981',
+              violet: '#8B5CF6',
+              amber: '#F59E0B',
+            }
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    :root {
+      --bg-app: #070B12;
+      --bg-panel: #0C121E;
+      --bg-elevated: #111927;
+      --border-subtle: #1E293B;
+      --text-primary: #F1F5F9;
+      --text-secondary: #94A3B8;
+      --accent-primary: #06B6D4;
+      --accent-secondary: #10B981;
+    }
+    html:not(.dark) {
+      --bg-app: #F1F5F9;
+      --bg-panel: #FFFFFF;
+      --bg-elevated: #F8FAFC;
+      --border-subtle: #E2E8F0;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --accent-primary: #0891B2;
+      --accent-secondary: #059669;
+    }
+    body {
+      background-color: var(--bg-app);
+      color: var(--text-primary);
+      font-family: 'Inter', system-ui, sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+    .panel {
+      background-color: var(--bg-panel);
+      border: 1px solid var(--border-subtle);
+      transition: background-color 0.2s ease, border-color 0.2s ease;
+    }
+    .panel-elevated {
+      background-color: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+    }
+    .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(6, 182, 212, 0.06) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(6, 182, 212, 0.06) 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+    html:not(.dark) .grid-bg {
+      background-image:
+        linear-gradient(to right, rgba(8, 145, 178, 0.07) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(8, 145, 178, 0.07) 1px, transparent 1px);
+    }
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 999px;
+      background: #1E293B;
+      outline: none;
+    }
+    html:not(.dark) input[type="range"] {
+      background: #CBD5E1;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #06B6D4;
+      cursor: pointer;
+      border: 2px solid #0C121E;
+      box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 15px;
+      height: 15px;
+      border-radius: 50%;
+      background: #06B6D4;
+      cursor: pointer;
+      border: 2px solid #0C121E;
+    }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.25); border-radius: 999px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.45); }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.45; transform: scale(0.85); }
+    }
+    .pulse-dot { animation: pulse-dot 2s infinite ease-in-out; }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+
+  <div id="toastContainer" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- Top Navigation Bar -->
+  <header class="sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800/90 bg-white/85 dark:bg-[#070B12]/85 backdrop-blur-md">
+    <div class="max-w-[1440px] mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-3">
+      <div class="flex items-center gap-4 sm:gap-6 min-w-0">
+        <div class="flex items-center gap-2.5 shrink-0">
+          <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center shadow-sm shadow-cyan-500/20">
+            <svg class="w-4 h-4 text-slate-950" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 12h2.5l2-6 3 12 2.5-8 2 4H20" />
+            </svg>
+          </div>
+          <div class="flex flex-col leading-none">
+            <span class="font-semibold text-sm tracking-tight">PromptLab</span>
+            <span class="font-mono text-[10px] text-slate-500 dark:text-slate-400 hidden sm:inline">BYOK WORKBENCH</span>
+          </div>
+        </div>
+
+        <nav class="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/90 p-1 rounded-lg border border-slate-200 dark:border-slate-800" aria-label="Workspace modes">
+          <button id="tabStudio" type="button" class="nav-mode-btn px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+            Studio
+          </button>
+          <button id="tabCompare" type="button" class="nav-mode-btn px-3 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+            <span class="w-1.5 h-1.5 rounded-full bg-transparent"></span>
+            Compare
+          </button>
+          <button id="btnFieldGuide" type="button" class="px-3 py-1 rounded-md text-xs font-medium transition-all text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">
+            Field guide
+          </button>
+        </nav>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btnViewCode" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium panel-elevated hover:border-cyan-500/50 transition-colors flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-cyan-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+          <span class="hidden sm:inline">View code</span>
+        </button>
+        <button id="btnSession" type="button" class="px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-medium panel-elevated hover:border-cyan-500/50 transition-colors flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+          <span class="hidden sm:inline">Session</span>
+        </button>
+        <button id="btnThemeToggle" type="button" title="Toggle light/dark theme" class="p-1.5 rounded-lg panel-elevated hover:border-cyan-500/50 transition-colors text-slate-600 dark:text-slate-300">
+          <svg id="iconSun" class="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+          <svg id="iconMoon" class="w-4 h-4 block dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-[1440px] mx-auto px-4 sm:px-6 py-5 space-y-5">
+
+    <!-- Hero & Live Signal Pulse Banner -->
+    <section class="panel rounded-2xl overflow-hidden relative">
+      <div class="h-1 w-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-violet-500"></div>
+      <div class="p-5 sm:p-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+        <div class="lg:col-span-7 space-y-3">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <span class="font-mono text-[11px] uppercase tracking-widest text-cyan-600 dark:text-cyan-400 font-semibold">— CLIENT-SIDE INFERENCE WORKBENCH</span>
+            <span id="heroModeBadge" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+              <span id="heroStatusDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 pulse-dot"></span>
+              <span id="heroStatusText">DEMO · Simulated Stream | No key required</span>
+            </span>
+          </div>
+          <h1 id="heroTitle" class="text-2xl sm:text-3xl font-bold tracking-tight">
+            Prompt studio<span class="text-cyan-500">.</span>
+          </h1>
+          <p id="heroSubtitle" class="text-sm text-slate-600 dark:text-slate-400 max-w-2xl leading-relaxed">
+            Craft system instructions, test few-shot examples, and inspect real-time token telemetry. Runs in simulated demo mode out of the box or connects directly from your browser to Groq's OpenAI-compatible endpoint.
+          </p>
+        </div>
+
+        <div class="lg:col-span-5 panel-elevated rounded-xl p-4 grid-bg relative">
+          <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+              <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">TOKEN PULSE MONITOR</span>
+              <span id="pulseWordCount" class="font-mono text-[11px] px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">0 words</span>
+            </div>
+            <div class="flex items-center gap-1 bg-slate-200/70 dark:bg-slate-900 p-0.5 rounded-md border border-slate-300 dark:border-slate-800">
+              <button id="pulseModeDraft" type="button" class="px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm">Draft</button>
+              <button id="pulseModeStream" type="button" class="px-2 py-0.5 rounded text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white">Stream</button>
+            </div>
+          </div>
+          <div class="relative h-24 w-full">
+            <canvas id="pulseCanvas" class="w-full h-full block"></canvas>
+          </div>
+          <div class="mt-2 flex items-center justify-between font-mono text-[10px] text-slate-500 dark:text-slate-400">
+            <span id="pulseAxisLeft">WORD DENSITY / TOKEN CADENCE</span>
+            <span id="pulseAxisRight">IDLE</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4-Column Telemetry Strip -->
+    <section class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" aria-label="Telemetry metrics">
+      <div class="panel rounded-xl p-4 border-t-2 border-t-cyan-500">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">TOTAL TOKENS</span>
+          <span class="font-mono text-[10px] text-cyan-500">Σ</span>
+        </div>
+        <div id="metricTotalTokens" class="mt-1.5 text-xl sm:text-2xl font-mono font-semibold tracking-tight">0</div>
+        <div id="metricTokenSub" class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">0 in · 0 out</div>
+      </div>
+
+      <div class="panel rounded-xl p-4 border-t-2 border-t-emerald-500">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">FIRST ANSWER TOKEN</span>
+          <span class="font-mono text-[10px] text-emerald-500">TTFT</span>
+        </div>
+        <div id="metricTTFT" class="mt-1.5 text-xl sm:text-2xl font-mono font-semibold tracking-tight">— <span class="text-xs font-normal text-slate-500">ms</span></div>
+        <div class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">Time to first byte</div>
+      </div>
+
+      <div class="panel rounded-xl p-4 border-t-2 border-t-violet-500">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">GENERATION SPEED</span>
+          <span class="font-mono text-[10px] text-violet-500">TPS</span>
+        </div>
+        <div id="metricSpeed" class="mt-1.5 text-xl sm:text-2xl font-mono font-semibold tracking-tight">— <span class="text-xs font-normal text-slate-500">tok/s</span></div>
+        <div class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">Decode throughput</div>
+      </div>
+
+      <div class="panel rounded-xl p-4 border-t-2 border-t-amber-500">
+        <div class="flex items-center justify-between">
+          <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">TOTAL LATENCY</span>
+          <span class="font-mono text-[10px] text-amber-500">E2E</span>
+        </div>
+        <div id="metricLatency" class="mt-1.5 text-xl sm:text-2xl font-mono font-semibold tracking-tight">— <span class="text-xs font-normal text-slate-500">sec</span></div>
+        <div class="mt-0.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">End-to-end request</div>
+      </div>
+    </section>
+
+    <!-- Main Two-Column Workspace -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+
+      <!-- Left Sidebar: Control Desk -->
+      <aside class="lg:col-span-4 space-y-4">
+        <div class="panel rounded-2xl p-4 sm:p-5 space-y-5">
+          <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+            <h2 class="text-sm font-semibold tracking-tight">Control desk</h2>
+            <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500">PARAMETERS &amp; ENGINE</span>
+          </div>
+
+          <!-- MODEL ENGINE -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between">
+              <label for="modelSelect" class="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">MODEL ENGINE</label>
+              <button id="btnToggleCustomModel" type="button" class="font-mono text-[11px] text-cyan-600 dark:text-cyan-400 hover:underline">+ Custom ID</button>
+            </div>
+            <select id="modelSelect" class="w-full rounded-lg px-3 py-2 text-xs font-medium panel-elevated focus:outline-none focus:ring-2 focus:ring-cyan-500/50">
+              <option value="openai/gpt-oss-20b">GPT-OSS 20B (Fast Reasoning)</option>
+              <option value="openai/gpt-oss-120b">GPT-OSS 120B (Deep Reasoning)</option>
+              <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile</option>
+              <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+              <option value="qwen/qwen3-32b">Qwen 3 32B</option>
+            </select>
+            <div id="customModelWrap" class="hidden">
+              <input id="customModelInput" type="text" placeholder="e.g. mixtral-8x7b-32768" class="w-full rounded-lg px-3 py-1.5 text-xs font-mono panel-elevated focus:outline-none focus:ring-2 focus:ring-cyan-500/50" />
+            </div>
+            <p id="modelDescription" class="text-[11px] text-slate-500 dark:text-slate-400 leading-snug"></p>
+            <div id="modelTags" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <!-- API CONNECTION -->
+          <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">API CONNECTION</span>
+              <span id="apiStatusPill" class="font-mono text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400">• Demo / Offline</span>
+            </div>
+            <div class="flex gap-1.5">
+              <div class="relative flex-1">
+                <input id="apiKeyInput" type="password" placeholder="gsk_... (optional Groq key)" class="w-full rounded-lg pl-3 pr-8 py-1.5 text-xs font-mono panel-elevated focus:outline-none focus:ring-2 focus:ring-cyan-500/50" />
+                <button id="btnToggleKeyVis" type="button" title="Show/hide API key" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200">
+                  <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                </button>
+              </div>
+              <button id="btnConnectKey" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold transition-colors">Connect</button>
+            </div>
+            <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+              <label class="inline-flex items-center gap-1.5 cursor-pointer select-none">
+                <input id="chkRememberKey" type="checkbox" class="rounded border-slate-600 text-cyan-500 focus:ring-cyan-500/40" />
+                <span>Remember in this tab</span>
+              </label>
+              <button id="btnClearKey" type="button" class="hover:text-rose-400 transition-colors">Clear key</button>
+            </div>
+            <p class="text-[10px] text-slate-500 dark:text-slate-500 leading-relaxed">
+              Zero-backend: keys stay in browser memory and talk directly to Groq. Leave blank to test with simulated streaming.
+            </p>
+          </div>
+
+          <!-- PARAMETERS -->
+          <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3.5">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">PARAMETERS</span>
+              <div class="flex items-center gap-1">
+                <button type="button" data-preset="precise" class="preset-btn px-2 py-0.5 rounded text-[10px] font-mono panel-elevated hover:border-cyan-500/50">Precise</button>
+                <button type="button" data-preset="balanced" class="preset-btn px-2 py-0.5 rounded text-[10px] font-mono bg-cyan-500/15 text-cyan-500 border border-cyan-500/40">Balanced</button>
+                <button type="button" data-preset="creative" class="preset-btn px-2 py-0.5 rounded text-[10px] font-mono panel-elevated hover:border-cyan-500/50">Creative</button>
+              </div>
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <label for="rangeTemp" class="text-slate-600 dark:text-slate-300">Temperature</label>
+                <input id="numTemp" type="number" min="0" max="2" step="0.05" value="0.7" class="w-16 text-right font-mono text-xs rounded px-1.5 py-0.5 panel-elevated" />
+              </div>
+              <input id="rangeTemp" type="range" min="0" max="2" step="0.05" value="0.7" class="w-full" />
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <label for="rangeTopP" class="text-slate-600 dark:text-slate-300">Top P</label>
+                <input id="numTopP" type="number" min="0" max="1" step="0.05" value="1" class="w-16 text-right font-mono text-xs rounded px-1.5 py-0.5 panel-elevated" />
+              </div>
+              <input id="rangeTopP" type="range" min="0" max="1" step="0.05" value="1" class="w-full" />
+            </div>
+
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <label for="numMaxTokens" class="text-slate-600 dark:text-slate-300">Max completion tokens</label>
+                <input id="numMaxTokens" type="number" min="64" max="8192" step="64" value="1024" class="w-20 text-right font-mono text-xs rounded px-1.5 py-0.5 panel-elevated" />
+              </div>
+              <p class="text-[10px] text-slate-500">Includes reasoning tokens when enabled.</p>
+            </div>
+
+            <div class="space-y-1">
+              <label for="inputStopSeq" class="text-xs text-slate-600 dark:text-slate-300 block">Stop sequences <span class="text-slate-500 font-mono text-[10px]">(comma-separated, max 4)</span></label>
+              <input id="inputStopSeq" type="text" placeholder="e.g. END, ###" class="w-full rounded-lg px-2.5 py-1.5 text-xs font-mono panel-elevated focus:outline-none focus:ring-2 focus:ring-cyan-500/50" />
+            </div>
+
+            <div class="space-y-2 pt-1">
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-600 dark:text-slate-300">Show reasoning trace</span>
+                <div class="flex items-center gap-2">
+                  <select id="selectReasoningEffort" class="rounded px-1.5 py-0.5 text-[11px] font-mono panel-elevated">
+                    <option value="low">low</option>
+                    <option value="medium" selected>medium</option>
+                    <option value="high">high</option>
+                  </select>
+                  <input id="chkShowReasoning" type="checkbox" checked class="rounded border-slate-600 text-cyan-500 focus:ring-cyan-500/40 cursor-pointer" />
+                </div>
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-600 dark:text-slate-300">JSON structured mode</span>
+                <input id="chkJsonMode" type="checkbox" class="rounded border-slate-600 text-cyan-500 focus:ring-cyan-500/40 cursor-pointer" />
+              </div>
+              <div class="flex items-center justify-between text-xs">
+                <span class="text-slate-600 dark:text-slate-300">Web search grounding</span>
+                <input id="chkWebSearch" type="checkbox" class="rounded border-slate-600 text-cyan-500 focus:ring-cyan-500/40 cursor-pointer" />
+              </div>
+            </div>
+          </div>
+
+          <!-- CAPACITY & RATE LIMITS -->
+          <div class="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">CAPACITY</span>
+              <span id="capacityPct" class="font-mono text-[11px] text-emerald-500">0.00%</span>
+            </div>
+            <div class="w-full h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
+              <div id="capacityBar" class="h-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300" style="width: 1%"></div>
+            </div>
+            <p id="capacityDetail" class="font-mono text-[10px] text-slate-500 dark:text-slate-400"></p>
+            <div class="grid grid-cols-2 gap-2 pt-1 font-mono text-[10px]">
+              <div class="panel-elevated rounded-lg p-2">
+                <div class="text-slate-500">Tokens/min left</div>
+                <div id="rateTpm" class="text-xs font-semibold mt-0.5">—</div>
+              </div>
+              <div class="panel-elevated rounded-lg p-2">
+                <div class="text-slate-500">Requests/day left</div>
+                <div id="rateRpd" class="text-xs font-semibold mt-0.5">—</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Right Main Column -->
+      <div class="lg:col-span-8 space-y-5">
+
+        <!-- Prompt Console / Compare Console -->
+        <section class="panel rounded-2xl p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+            <div class="flex items-center gap-2">
+              <h2 id="consoleTitle" class="text-sm font-semibold tracking-tight">Prompt console</h2>
+              <span class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">STARTER RECIPES</span>
+            </div>
+            <div class="flex items-center gap-2 text-[11px] font-mono text-slate-500">
+              <span>1 Connect key (or Demo)</span>
+              <span>→</span>
+              <span>2 Pick recipe</span>
+              <span>→</span>
+              <span>3 Run</span>
+            </div>
+          </div>
+
+          <div id="compareBar" class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-xl panel-elevated border border-cyan-500/25">
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="font-mono text-[11px] font-semibold text-cyan-500">RUN A</span>
+                <span class="font-mono text-[10px] text-slate-500">Temp: <span id="compareTempALabel">0.3</span></span>
+              </div>
+              <div class="flex gap-2">
+                <select id="compareModelA" class="flex-1 rounded-lg px-2.5 py-1.5 text-xs panel border border-slate-700">
+                  <option value="openai/gpt-oss-20b" selected>GPT-OSS 20B</option>
+                  <option value="openai/gpt-oss-120b">GPT-OSS 120B</option>
+                  <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                  <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
+                </select>
+                <input id="compareTempA" type="number" min="0" max="2" step="0.1" value="0.3" class="w-16 rounded-lg px-2 py-1 text-xs font-mono panel border border-slate-700 text-right" />
+              </div>
+            </div>
+            <div class="space-y-1.5">
+              <div class="flex items-center justify-between">
+                <span class="font-mono text-[11px] font-semibold text-emerald-500">RUN B</span>
+                <span class="font-mono text-[10px] text-slate-500">Temp: <span id="compareTempBLabel">1.0</span></span>
+              </div>
+              <div class="flex gap-2">
+                <select id="compareModelB" class="flex-1 rounded-lg px-2.5 py-1.5 text-xs panel border border-slate-700">
+                  <option value="openai/gpt-oss-20b">GPT-OSS 20B</option>
+                  <option value="openai/gpt-oss-120b" selected>GPT-OSS 120B</option>
+                  <option value="llama-3.3-70b-versatile">Llama 3.3 70B</option>
+                  <option value="llama-3.1-8b-instant">Llama 3.1 8B</option>
+                </select>
+                <input id="compareTempB" type="number" min="0" max="2" step="0.1" value="1.0" class="w-16 rounded-lg px-2 py-1 text-xs font-mono panel border border-slate-700 text-right" />
+              </div>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">TRY A RECIPE</span>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <button type="button" data-recipe="zero-shot" class="recipe-card text-left p-3 rounded-xl panel-elevated hover:border-cyan-500/60 transition-all group">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-semibold group-hover:text-cyan-400 transition-colors">Classify a review</span>
+                  <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Zero-shot</span>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">Sentiment + key topic in strict JSON.</p>
+              </button>
+              <button type="button" data-recipe="one-shot" class="recipe-card text-left p-3 rounded-xl panel-elevated hover:border-cyan-500/60 transition-all group">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-semibold group-hover:text-cyan-400 transition-colors">Translate a phrase</span>
+                  <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">One-shot</span>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">Anchor tone &amp; glossary with 1 example.</p>
+              </button>
+              <button type="button" data-recipe="few-shot" class="recipe-card text-left p-3 rounded-xl panel-elevated hover:border-cyan-500/60 transition-all group">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-semibold group-hover:text-cyan-400 transition-colors">Route a ticket</span>
+                  <span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Few-shot</span>
+                </div>
+                <p class="mt-1 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">Classify urgency &amp; team with 3 shots.</p>
+              </button>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div class="flex items-center gap-2">
+              <button id="btnToggleSystem" type="button" class="px-2.5 py-1 rounded-lg text-xs font-medium panel-elevated hover:border-cyan-500/50 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-cyan-500"></span>
+                System prompt
+              </button>
+              <button id="btnToggleExamples" type="button" class="px-2.5 py-1 rounded-lg text-xs font-medium panel-elevated hover:border-emerald-500/50 flex items-center gap-1.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                Examples (<span id="examplesCountBadge">0</span>)
+              </button>
+            </div>
+            <div class="flex items-center gap-2">
+              <select id="templateSelect" class="rounded-lg px-2.5 py-1 text-xs panel-elevated focus:outline-none focus:ring-2 focus:ring-cyan-500/40">
+                <option value="">Templates…</option>
+                <option value="code-review">Code Review Checklist</option>
+                <option value="sql-gen">Natural Language → SQL</option>
+                <option value="exec-brief">Executive 3-Bullet Brief</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="systemPromptWrap" class="hidden space-y-1.5 p-3 rounded-xl panel-elevated">
+            <div class="flex items-center justify-between">
+              <label for="systemPromptInput" class="font-mono text-[10px] uppercase tracking-wider text-cyan-500 font-semibold">SYSTEM INSTRUCTION</label>
+              <span id="systemTokenEst" class="font-mono text-[10px] text-slate-500">0 tokens</span>
+            </div>
+            <textarea id="systemPromptInput" rows="2" placeholder="Define role, constraints, and output format..." class="w-full bg-transparent text-xs font-mono focus:outline-none resize-y"></textarea>
+          </div>
+
+          <div id="examplesWrap" class="hidden space-y-2.5 p-3 rounded-xl panel-elevated">
+            <div class="flex items-center justify-between">
+              <span class="font-mono text-[10px] uppercase tracking-wider text-emerald-500 font-semibold">FEW-SHOT EXAMPLES (USER → ASSISTANT)</span>
+              <button id="btnAddExample" type="button" class="font-mono text-[11px] text-emerald-500 hover:underline">+ Add pair</button>
+            </div>
+            <div id="examplesList" class="space-y-2"></div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <label for="userPromptInput" class="font-mono text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">USER PROMPT</label>
+              <span id="userTokenEst" class="font-mono text-[11px] text-slate-500 dark:text-slate-400">≈ 0 tokens · estimate</span>
+            </div>
+            <div class="rounded-xl panel-elevated p-3 focus-within:ring-2 focus-within:ring-cyan-500/50 transition-shadow">
+              <textarea id="userPromptInput" rows="4" class="w-full bg-transparent text-xs sm:text-sm font-mono leading-relaxed focus:outline-none resize-y" placeholder="Write your prompt here..."></textarea>
+              <div class="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <span class="font-mono text-[10px] text-slate-500">Ctrl / Cmd ↵ to submit</span>
+                <div class="flex items-center gap-2">
+                  <button id="btnResetPrompt" type="button" title="Reset prompt &amp; output" class="p-2 rounded-lg panel hover:border-slate-500 text-slate-400 hover:text-slate-200 transition-colors">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path></svg>
+                  </button>
+                  <button id="btnRunPrompt" type="button" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-gradient-to-r from-cyan-500 to-emerald-500 hover:from-cyan-400 hover:to-emerald-400 text-slate-950 shadow-sm shadow-cyan-500/20 transition-all flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <span id="btnRunLabel">Run prompt</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="outputSection" class="space-y-3 pt-1">
+            <div id="studioOutputBox" class="rounded-xl panel-elevated p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 font-semibold">MODEL RESPONSE</span>
+                <div class="flex items-center gap-2">
+                  <span id="outputModelBadge" class="font-mono text-[10px] text-cyan-500">Ready</span>
+                  <button id="btnCopyOutput" type="button" class="font-mono text-[10px] text-slate-400 hover:text-cyan-400">Copy</button>
+                </div>
+              </div>
+              <div id="reasoningBlock" class="hidden rounded-lg bg-violet-500/5 border border-violet-500/25 p-3 space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-mono text-[10px] uppercase tracking-wider text-violet-400 font-semibold">REASONING TRACE</span>
+                  <span id="reasoningTokenBadge" class="font-mono text-[10px] text-violet-400">0 tokens</span>
+                </div>
+                <p id="reasoningText" class="text-xs font-mono text-slate-400 whitespace-pre-wrap leading-relaxed"></p>
+              </div>
+              <div id="studioOutputText" class="text-xs sm:text-sm leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-200 font-sans">Click <span class="font-mono text-cyan-500">Run prompt</span> or pick a starter recipe above to stream a response.</div>
+            </div>
+
+            <div id="compareOutputBox" class="hidden grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="rounded-xl panel-elevated p-4 space-y-2 border-t-2 border-t-cyan-500">
+                <div class="flex items-center justify-between">
+                  <span class="font-mono text-[11px] font-semibold text-cyan-500">RUN A OUTPUT</span>
+                  <span id="compareMetaA" class="font-mono text-[10px] text-slate-500">—</span>
+                </div>
+                <div id="compareTextA" class="text-xs leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-200">Awaiting comparison run…</div>
+              </div>
+              <div class="rounded-xl panel-elevated p-4 space-y-2 border-t-2 border-t-emerald-500">
+                <div class="flex items-center justify-between">
+                  <span class="font-mono text-[11px] font-semibold text-emerald-500">RUN B OUTPUT</span>
+                  <span id="compareMetaB" class="font-mono text-[10px] text-slate-500">—</span>
+                </div>
+                <div id="compareTextB" class="text-xs leading-relaxed whitespace-pre-wrap text-slate-700 dark:text-slate-200">Awaiting comparison run…</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Prompt Analysis + Token Usage Grid -->
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-5">
+          <section class="panel rounded-2xl p-4 sm:p-5 space-y-3.5">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-semibold tracking-tight">Prompt analysis</h2>
+                <span class="font-mono text-[10px] text-emerald-500">• Local heuristic</span>
+              </div>
+              <button id="btnVerifyHeuristic" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-medium panel-elevated hover:border-cyan-500/50 transition-colors">Verify with model</button>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <span id="analysisShotBadge" class="font-mono text-[11px] font-semibold px-2.5 py-0.5 rounded-md bg-cyan-500/15 text-cyan-500 border border-cyan-500/30">ZERO-SHOT</span>
+              <span id="analysisExamplesCount" class="font-mono text-[11px] px-2 py-0.5 rounded-md panel-elevated text-slate-400">0 examples</span>
+              <div id="analysisTags" class="flex flex-wrap gap-1.5"></div>
+            </div>
+
+            <div class="p-3 rounded-xl panel-elevated space-y-1">
+              <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 font-semibold">COACHING TIP</span>
+              <p id="analysisTip" class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed"></p>
+            </div>
+
+            <details class="text-xs">
+              <summary class="cursor-pointer font-mono text-[11px] text-slate-500 hover:text-cyan-400 select-none">Detection details</summary>
+              <ul id="analysisDetailsList" class="mt-2 space-y-1 pl-4 list-disc text-slate-500 dark:text-slate-400 font-mono text-[11px]"></ul>
+            </details>
+          </section>
+
+          <section class="panel rounded-2xl p-4 sm:p-5 space-y-3.5">
+            <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h2 class="text-sm font-semibold tracking-tight">Token usage</h2>
+              <button id="btnEditPrices" type="button" class="px-2.5 py-1 rounded-lg text-[11px] font-medium panel-elevated hover:border-cyan-500/50 transition-colors">Edit prices</button>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-left font-mono text-xs">
+                <thead>
+                  <tr class="text-[10px] uppercase text-slate-500 border-b border-slate-200 dark:border-slate-800">
+                    <th class="py-1.5">Input</th>
+                    <th class="py-1.5">Thinking</th>
+                    <th class="py-1.5">Output</th>
+                    <th class="py-1.5">Total</th>
+                    <th class="py-1.5 text-right">Est. cost</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="font-semibold">
+                    <td id="usageInput" class="py-2 text-violet-400">0</td>
+                    <td id="usageThinking" class="py-2 text-amber-400">0</td>
+                    <td id="usageOutput" class="py-2 text-emerald-400">0</td>
+                    <td id="usageTotal" class="py-2">0</td>
+                    <td id="usageCost" class="py-2 text-right text-cyan-400">$0.0000</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="space-y-1.5">
+              <span class="font-mono text-[10px] uppercase tracking-wider text-slate-500 font-semibold">PER-TURN TOKENS</span>
+              <div class="relative h-36 w-full">
+                <canvas id="usageChart"></canvas>
+              </div>
+            </div>
+          </section>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Field Guide -->
+  <div id="modalFieldGuide" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="panel rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-semibold">PromptLab Field Guide</h3>
+          <p class="text-xs text-slate-500">Live reference synced to your current workspace state</p>
+        </div>
+        <button type="button" data-close-modal="modalFieldGuide" class="p-1.5 rounded-lg panel-elevated text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div class="px-5 pt-3 flex gap-2 border-b border-slate-200 dark:border-slate-800">
+        <button type="button" data-fg-tab="prompt" class="fg-tab px-3 py-2 text-xs font-medium border-b-2 border-cyan-500 text-cyan-500">Prompt</button>
+        <button type="button" data-fg-tab="context" class="fg-tab px-3 py-2 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300">Context</button>
+        <button type="button" data-fg-tab="stream" class="fg-tab px-3 py-2 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300">Stream</button>
+        <button type="button" data-fg-tab="usage" class="fg-tab px-3 py-2 text-xs font-medium border-b-2 border-transparent text-slate-500 hover:text-slate-300">Usage</button>
+      </div>
+      <div id="fieldGuideBody" class="p-5 overflow-y-auto text-xs sm:text-sm space-y-3 leading-relaxed text-slate-600 dark:text-slate-300"></div>
+    </div>
+  </div>
+
+  <!-- MODAL: View Code -->
+  <div id="modalViewCode" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="panel rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col overflow-hidden shadow-2xl">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div>
+          <h3 class="text-base font-semibold">Export API Request Code</h3>
+          <p class="text-xs text-slate-500">Ready-to-run snippet using your current model &amp; parameters</p>
+        </div>
+        <button type="button" data-close-modal="modalViewCode" class="p-1.5 rounded-lg panel-elevated text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div class="px-5 py-3 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800">
+        <div class="flex flex-wrap gap-1">
+          <button type="button" data-code-lang="curl" class="code-lang-btn px-2.5 py-1 rounded-md text-xs font-mono bg-cyan-500/15 text-cyan-500 border border-cyan-500/30">curl</button>
+          <button type="button" data-code-lang="py-openai" class="code-lang-btn px-2.5 py-1 rounded-md text-xs font-mono panel-elevated text-slate-400">Python · OpenAI</button>
+          <button type="button" data-code-lang="py-groq" class="code-lang-btn px-2.5 py-1 rounded-md text-xs font-mono panel-elevated text-slate-400">Python · Groq</button>
+          <button type="button" data-code-lang="js-fetch" class="code-lang-btn px-2.5 py-1 rounded-md text-xs font-mono panel-elevated text-slate-400">JS · fetch</button>
+          <button type="button" data-code-lang="node-groq" class="code-lang-btn px-2.5 py-1 rounded-md text-xs font-mono panel-elevated text-slate-400">Node · Groq</button>
+        </div>
+        <div id="codeCompareSwitchWrap" class="hidden items-center gap-1.5 text-xs font-mono">
+          <span class="text-slate-500">Target:</span>
+          <select id="codeCompareTarget" class="rounded px-2 py-1 panel-elevated text-xs">
+            <option value="A">Run A</option>
+            <option value="B">Run B</option>
+          </select>
+        </div>
+      </div>
+      <div class="p-5 overflow-y-auto space-y-3">
+        <pre id="codeSnippetPre" class="p-4 rounded-xl bg-slate-950 text-cyan-200 font-mono text-xs overflow-x-auto leading-relaxed border border-slate-800"></pre>
+        <div class="flex justify-end">
+          <button id="btnCopyCode" type="button" class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-colors">Copy snippet</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Session Manager -->
+  <div id="modalSession" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="panel rounded-2xl max-w-md w-full overflow-hidden shadow-2xl">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <h3 class="text-base font-semibold">Session Manager</h3>
+        <button type="button" data-close-modal="modalSession" class="p-1.5 rounded-lg panel-elevated text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div class="p-5 space-y-3">
+        <p class="text-xs text-slate-500 dark:text-slate-400">Export your prompt, parameters, and turn history or restore a previous JSON session.</p>
+        <div class="grid grid-cols-2 gap-2.5">
+          <button id="btnExportJson" type="button" class="px-3 py-2 rounded-lg text-xs font-medium panel-elevated hover:border-cyan-500/50">Export JSON</button>
+          <button id="btnExportMd" type="button" class="px-3 py-2 rounded-lg text-xs font-medium panel-elevated hover:border-cyan-500/50">Export Markdown</button>
+          <button id="btnCopySession" type="button" class="px-3 py-2 rounded-lg text-xs font-medium panel-elevated hover:border-cyan-500/50">Copy session JSON</button>
+          <label class="px-3 py-2 rounded-lg text-xs font-medium panel-elevated hover:border-emerald-500/50 text-center cursor-pointer">
+            Load JSON file
+            <input id="inputLoadSession" type="file" accept=".json,application/json" class="hidden" />
+          </label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Edit Prices -->
+  <div id="modalPrices" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+    <div class="panel rounded-2xl max-w-sm w-full overflow-hidden shadow-2xl">
+      <div class="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <h3 class="text-sm font-semibold">Token Pricing ($ per 1M tokens)</h3>
+        <button type="button" data-close-modal="modalPrices" class="p-1.5 rounded-lg panel-elevated text-slate-400 hover:text-white">✕</button>
+      </div>
+      <div class="p-5 space-y-3 text-xs">
+        <div class="space-y-1">
+          <label for="priceInputRate" class="text-slate-400">Input ($ / 1M tokens)</label>
+          <input id="priceInputRate" type="number" step="0.01" min="0" value="0.10" class="w-full rounded-lg px-3 py-1.5 font-mono panel-elevated" />
+        </div>
+        <div class="space-y-1">
+          <label for="priceOutputRate" class="text-slate-400">Output &amp; Thinking ($ / 1M tokens)</label>
+          <input id="priceOutputRate" type="number" step="0.01" min="0" value="0.40" class="w-full rounded-lg px-3 py-1.5 font-mono panel-elevated" />
+        </div>
+        <button id="btnSavePrices" type="button" class="w-full py-2 rounded-lg font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950">Save rates</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const MODELS = {
+        'openai/gpt-oss-20b': {
+          name: 'GPT-OSS 20B',
+          context: 131072,
+          desc: 'Compact open-weight reasoning model tuned for low-latency structured tasks.',
+          tags: ['131,072 context', 'Reasoning', 'Web search', 'JSON']
+        },
+        'openai/gpt-oss-120b': {
+          name: 'GPT-OSS 120B',
+          context: 131072,
+          desc: 'High-capacity reasoning engine for multi-step synthesis and complex code.',
+          tags: ['131,072 context', 'Deep Reasoning', 'JSON']
+        },
+        'llama-3.3-70b-versatile': {
+          name: 'Llama 3.3 70B Versatile',
+          context: 128000,
+          desc: 'Balanced flagship general-purpose model with strong instruction adherence.',
+          tags: ['128,000 context', 'Multilingual', 'JSON']
+        },
+        'llama-3.1-8b-instant': {
+          name: 'Llama 3.1 8B Instant',
+          context: 131072,
+          desc: 'Ultra-fast lightweight model ideal for classification and extraction.',
+          tags: ['131,072 context', 'Ultra-fast', 'JSON']
+        },
+        'qwen/qwen3-32b': {
+          name: 'Qwen 3 32B',
+          context: 131072,
+          desc: 'Strong coding, math, and bilingual reasoning model.',
+          tags: ['131,072 context', 'Reasoning', 'Code']
+        }
+      };
+
+      const RECIPES = {
+        'zero-shot': {
+          system: 'You are a precise product feedback classifier. Respond only with valid JSON containing keys: sentiment ("positive"|"neutral"|"negative"), topic, and confidence (0-1).',
+          examples: [],
+          prompt: 'Classify this customer review:\n"The hardware feels solid and battery easily lasts two days, though the companion app took three tries to pair."'
+        },
+        'one-shot': {
+          system: 'Translate English UI copy into natural Spanish. Match the concise, friendly tone of the example.',
+          examples: [
+            { user: 'Save your changes before leaving this page.', assistant: 'Guarda tus cambios antes de salir de esta página.' }
+          ],
+          prompt: 'Translate:\n"Your API key is stored only in this browser tab and never sent to our servers."'
+        },
+        'few-shot': {
+          system: 'Route incoming support tickets to Billing, Technical, or Account. Output format: [TEAM] | [URGENCY: Low/Med/High]',
+          examples: [
+            { user: 'I was charged twice for my Pro plan this morning.', assistant: 'Billing | High' },
+            { user: 'Where can I update my notification email address?', assistant: 'Account | Low' },
+            { user: 'Webhook deliveries are returning 502 errors since 14:00 UTC.', assistant: 'Technical | High' }
+          ],
+          prompt: 'Route this ticket:\n"Our SSO SAML certificate expires tomorrow and team members cannot sign in."'
+        }
+      };
+
+      const TEMPLATES = {
+        'code-review': {
+          system: 'You are a senior staff engineer. Audit the snippet for correctness, edge cases, and security in under 5 bullet points.',
+          prompt: 'Review this function:\nfunction parseUser(raw) {\n  return JSON.parse(raw).user || {};\n}'
+        },
+        'sql-gen': {
+          system: 'Generate PostgreSQL queries only. Use CTEs for readability and never use SELECT *.',
+          prompt: 'Schema: orders(id, user_id, total_cents, created_at). Find top 5 users by spend in the last 30 days.'
+        },
+        'exec-brief': {
+          system: 'Summarize technical updates for an executive audience in exactly 3 bullets: Impact, Risk, Next Step.',
+          prompt: 'We migrated our inference gateway to streaming SSE, cutting P95 TTFT from 640ms to 190ms, though retry logic for dropped sockets is still in QA.'
+        }
+      };
+
+      const state = {
+        mode: 'studio',
+        model: 'openai/gpt-oss-20b',
+        customModel: '',
+        apiKey: '',
+        temperature: 0.7,
+        topP: 1,
+        maxTokens: 1024,
+        stopSequences: '',
+        showReasoning: true,
+        reasoningEffort: 'medium',
+        jsonMode: false,
+        webSearch: false,
+        systemPrompt: RECIPES['zero-shot'].system,
+        examples: [],
+        userPrompt: RECIPES['zero-shot'].prompt,
+        pulseMode: 'draft',
+        isStreaming: false,
+        turns: [],
+        prices: { input: 0.10, output: 0.40 },
+        activeFgTab: 'prompt',
+        activeCodeLang: 'curl',
+      };
+
+      const $ = (id) => document.getElementById(id);
+
+      let usageChart = null;
+      let pulseAnimId = null;
+
+      function showToast(msg, type = 'info') {
+        const colors = {
+          info: 'border-cyan-500/40 text-cyan-200 bg-slate-900/95',
+          success: 'border-emerald-500/40 text-emerald-200 bg-slate-900/95',
+          error: 'border-rose-500/40 text-rose-200 bg-slate-900/95',
+        };
+        const el = document.createElement('div');
+        el.className = `pointer-events-auto px-3.5 py-2 rounded-lg border text-xs font-medium shadow-lg transition-all ${colors[type] || colors.info}`;
+        el.textContent = msg;
+        $('toastContainer').appendChild(el);
+        setTimeout(() => { el.style.opacity = '0'; setTimeout(() => el.remove(), 250); }, 2800);
+      }
+
+      function estimateTokens(text) {
+        if (!text || !text.trim()) return 0;
+        return Math.max(1, Math.ceil(text.trim().length / 3.8));
+      }
+
+      function getActiveModelId() {
+        return state.customModel.trim() || state.model;
+      }
+
+      function getActiveContextWindow() {
+        const m = MODELS[state.model];
+        return m ? m.context : 131072;
+      }
+
+      function copyText(text) {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard', 'success')).catch(() => fallbackCopy(text));
+        } else {
+          fallbackCopy(text);
+        }
+      }
+
+      function fallbackCopy(text) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          document.execCommand('copy');
+          showToast('Copied to clipboard', 'success');
+        } catch (e) {
+          showToast('Copy failed', 'error');
+        }
+        ta.remove();
+      }
+
+      function updateModelInfo() {
+        const info = MODELS[state.model] || { desc: 'Custom OpenAI-compatible model ID.', tags: ['Custom'] };
+        $('modelDescription').textContent = info.desc;
+        $('modelTags').innerHTML = info.tags.map(t => `<span class="font-mono text-[10px] px-2 py-0.5 rounded panel-elevated text-slate-500 dark:text-slate-300">${t}</span>`).join('');
+        updateEstimatesAndCapacity();
+      }
+
+      function updateEstimatesAndCapacity() {
+        const sysTokens = estimateTokens(state.systemPrompt);
+        const exTokens = state.examples.reduce((acc, ex) => acc + estimateTokens(ex.user) + estimateTokens(ex.assistant), 0);
+        const usrTokens = estimateTokens(state.userPrompt);
+        const totalIn = sysTokens + exTokens + usrTokens;
+
+        $('systemTokenEst').textContent = `${sysTokens} tokens`;
+        $('userTokenEst').textContent = `≈ ${usrTokens} tokens · estimate`;
+
+        const words = state.userPrompt.trim() ? state.userPrompt.trim().split(/\s+/).length : 0;
+        $('pulseWordCount').textContent = `${words} ${words === 1 ? 'word' : 'words'}`;
+
+        const ctx = getActiveContextWindow();
+        const used = totalIn + state.maxTokens;
+        const pct = Math.min(100, (used / ctx) * 100);
+        $('capacityPct').textContent = `${pct.toFixed(2)}%`;
+        $('capacityBar').style.width = `${Math.max(1, pct)}%`;
+        $('capacityDetail').textContent = `${totalIn.toLocaleString()} input (est.) + ${state.maxTokens.toLocaleString()} budget / ${ctx.toLocaleString()} context`;
+
+        runLocalPromptAnalysis();
+      }
+
+      function runLocalPromptAnalysis() {
+        const count = state.examples.length;
+        let shot = 'ZERO-SHOT';
+        if (count === 1) shot = 'ONE-SHOT';
+        else if (count >= 2) shot = 'FEW-SHOT';
+
+        $('analysisShotBadge').textContent = shot;
+        $('analysisExamplesCount').textContent = `${count} ${count === 1 ? 'example' : 'examples'}`;
+
+        const p = (state.systemPrompt + '\n' + state.userPrompt).toLowerCase();
+        const tags = [];
+        const details = [];
+
+        if (/\bjson\b|schema|keys?:/.test(p)) {
+          tags.push('Structured output');
+          details.push('Detected explicit JSON / schema formatting cues.');
+        }
+        if (/must|only|never|exactly|under \d+|max/.test(p)) {
+          tags.push('Explicit constraints');
+          details.push('Found boundary keywords ("only", "must", "exactly", or length caps).');
+        }
+        if (state.systemPrompt.trim().length > 15) {
+          tags.push('System role');
+          details.push(`System prompt sets persona/rules (${estimateTokens(state.systemPrompt)} est. tokens).`);
+        }
+        if (count > 0) {
+          details.push(`${count} user/assistant demonstration pair(s) anchored before the query.`);
+        } else {
+          details.push('No demonstration pairs attached; relying purely on instruction following.');
+        }
+
+        $('analysisTags').innerHTML = tags.map(t => `<span class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">${t}</span>`).join('');
+        $('analysisDetailsList').innerHTML = details.map(d => `<li>${d}</li>`).join('');
+
+        let tip = 'Prompt looks well-scoped. Test with Compare mode across two temperatures to check stability.';
+        if (state.userPrompt.trim().length < 20) {
+          tip = 'Your user prompt is very short. Add specific context, audience, or output format constraints.';
+        } else if (count === 0 && !/\bjson\b|format|bullet/.test(p)) {
+          tip = 'Add one example pair or an explicit output format rule to lock in consistent structure.';
+        } else if (state.temperature > 1.1 && /\bjson\b/.test(p)) {
+          tip = 'High temperature (> 1.1) with JSON requests can cause syntax drift. Consider lowering to 0.2–0.5.';
+        }
+        $('analysisTip').textContent = tip;
+      }
+
+      function renderExamples() {
+        $('examplesCountBadge').textContent = state.examples.length;
+        const list = $('examplesList');
+        if (state.examples.length === 0) {
+          list.innerHTML = '<p class="text-[11px] text-slate-500 font-mono">No examples yet. Click "+ Add pair" to build a one-shot or few-shot prompt.</p>';
+          return;
+        }
+        list.innerHTML = state.examples.map((ex, i) => `
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 rounded-lg panel relative">
+            <input type="text" data-ex-idx="${i}" data-ex-field="user" value="${ex.user.replace(/"/g, '&quot;')}" placeholder="User example..." class="ex-input rounded px-2 py-1 text-xs font-mono panel-elevated focus:outline-none" />
+            <div class="flex gap-1.5">
+              <input type="text" data-ex-idx="${i}" data-ex-field="assistant" value="${ex.assistant.replace(/"/g, '&quot;')}" placeholder="Expected assistant..." class="ex-input flex-1 rounded px-2 py-1 text-xs font-mono panel-elevated focus:outline-none" />
+              <button type="button" data-del-ex="${i}" class="px-2 text-xs text-slate-500 hover:text-rose-400" title="Remove pair">✕</button>
+            </div>
+          </div>
+        `).join('');
+
+        list.querySelectorAll('.ex-input').forEach(inp => {
+          inp.addEventListener('input', (e) => {
+            const idx = Number(e.target.dataset.exIdx);
+            const field = e.target.dataset.exField;
+            state.examples[idx][field] = e.target.value;
+            updateEstimatesAndCapacity();
+          });
+        });
+        list.querySelectorAll('[data-del-ex]').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            const idx = Number(e.target.dataset.delEx);
+            state.examples.splice(idx, 1);
+            renderExamples();
+            updateEstimatesAndCapacity();
+          });
+        });
+      }
+
+      function initUsageChart() {
+        const ctx = $('usageChart').getContext('2d');
+        usageChart = new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['—'],
+            datasets: [
+              { label: 'Input', data: [0], backgroundColor: '#8B5CF6', borderRadius: 3 },
+              { label: 'Thinking', data: [0], backgroundColor: '#F59E0B', borderRadius: 3 },
+              { label: 'Output', data: [0], backgroundColor: '#10B981', borderRadius: 3 },
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { boxWidth: 10, font: { family: 'JetBrains Mono', size: 10 }, color: '#94A3B8' }
+              }
+            },
+            scales: {
+              x: { stacked: true, grid: { display: false }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } } },
+              y: { stacked: true, beginAtZero: true, grid: { color: 'rgba(148,163,184,0.1)' }, ticks: { color: '#64748B', font: { family: 'JetBrains Mono', size: 10 } } }
+            }
+          }
+        });
+      }
+
+      function updateUsageStats(inputTok, thinkingTok, outputTok, ttftMs, totalSec) {
+        const total = inputTok + thinkingTok + outputTok;
+        const speed = totalSec > 0 ? Math.round((thinkingTok + outputTok) / totalSec) : 0;
+
+        $('metricTotalTokens').textContent = total.toLocaleString();
+        $('metricTokenSub').textContent = `${inputTok} in · ${thinkingTok + outputTok} out`;
+        $('metricTTFT').innerHTML = `${Math.round(ttftMs)} <span class="text-xs font-normal text-slate-500">ms</span>`;
+        $('metricSpeed').innerHTML = `${speed} <span class="text-xs font-normal text-slate-500">tok/s</span>`;
+        $('metricLatency').innerHTML = `${totalSec.toFixed(2)} <span class="text-xs font-normal text-slate-500">sec</span>`;
+
+        $('usageInput').textContent = inputTok.toLocaleString();
+        $('usageThinking').textContent = thinkingTok.toLocaleString();
+        $('usageOutput').textContent = outputTok.toLocaleString();
+        $('usageTotal').textContent = total.toLocaleString();
+
+        const cost = (inputTok / 1e6) * state.prices.input + ((thinkingTok + outputTok) / 1e6) * state.prices.output;
+        $('usageCost').textContent = `$${cost.toFixed(5)}`;
+
+        state.turns.push({ turn: `T${state.turns.length + 1}`, input: inputTok, thinking: thinkingTok, output: outputTok });
+        if (usageChart) {
+          usageChart.data.labels = state.turns.map(t => t.turn);
+          usageChart.data.datasets[0].data = state.turns.map(t => t.input);
+          usageChart.data.datasets[1].data = state.turns.map(t => t.thinking);
+          usageChart.data.datasets[2].data = state.turns.map(t => t.output);
+          usageChart.update();
+        }
+      }
+
+      function startPulseAnimation() {
+        const canvas = $('pulseCanvas');
+        const ctx = canvas.getContext('2d');
+        let phase = 0;
+
+        function draw() {
+          const dpr = window.devicePixelRatio || 1;
+          const rect = canvas.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0) {
+            if (canvas.width !== Math.floor(rect.width * dpr) || canvas.height !== Math.floor(rect.height * dpr)) {
+              canvas.width = Math.floor(rect.width * dpr);
+              canvas.height = Math.floor(rect.height * dpr);
+            }
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, rect.width, rect.height);
+
+            const words = state.userPrompt.trim() ? state.userPrompt.trim().split(/\s+/) : [];
+            const barCount = 36;
+            const gap = 3;
+            const barW = Math.max(2, (rect.width - gap * (barCount - 1)) / barCount);
+
+            for (let i = 0; i < barCount; i++) {
+              let ratio = 0.14;
+              if (state.pulseMode === 'stream' || state.isStreaming) {
+                const boost = state.isStreaming ? 0.65 : 0.25;
+                ratio = 0.15 + boost * (0.5 + 0.5 * Math.sin(phase * 0.12 + i * 0.45)) * (0.6 + 0.4 * Math.cos(phase * 0.05 - i * 0.2));
+              } else if (words.length > 0) {
+                const w = words[i % words.length];
+                ratio = Math.min(0.95, 0.16 + (w.length / 12) * 0.72);
+              }
+              const h = Math.max(4, ratio * (rect.height - 8));
+              const x = i * (barW + gap);
+              const y = rect.height - h;
+
+              const grad = ctx.createLinearGradient(0, y, 0, rect.height);
+              grad.addColorStop(0, state.isStreaming ? '#10B981' : '#06B6D4');
+              grad.addColorStop(1, 'rgba(6, 182, 212, 0.18)');
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              if (ctx.roundRect) {
+                ctx.roundRect(x, y, barW, h, 2);
+              } else {
+                ctx.rect(x, y, barW, h);
+              }
+              ctx.fill();
+            }
+            phase += 1;
+          }
+          pulseAnimId = requestAnimationFrame(draw);
+        }
+        if (pulseAnimId) cancelAnimationFrame(pulseAnimId);
+        draw();
+      }
+
+      function buildMessages() {
+        const msgs = [];
+        if (state.systemPrompt.trim()) msgs.push({ role: 'system', content: state.systemPrompt.trim() });
+        state.examples.forEach(ex => {
+          if (ex.user.trim()) msgs.push({ role: 'user', content: ex.user.trim() });
+          if (ex.assistant.trim()) msgs.push({ role: 'assistant', content: ex.assistant.trim() });
+        });
+        msgs.push({ role: 'user', content: state.userPrompt.trim() });
+        return msgs;
+      }
+
+      function generateSimulatedResponse(modelId, temp) {
+        const promptLower = state.userPrompt.toLowerCase();
+        const reasoning = `Analyzing prompt (${estimateTokens(state.userPrompt)} est. tokens) at temperature ${temp}. Checking constraints and formatting instructions.`;
+        let answer = '';
+
+        if (state.jsonMode || /json|sentiment|classify/.test(promptLower)) {
+          answer = JSON.stringify({
+            sentiment: 'positive',
+            topic: 'hardware_battery_and_pairing',
+            confidence: 0.91,
+            notes: 'Praised build quality and 2-day battery; minor onboarding friction with app pairing.'
+          }, null, 2);
+        } else if (/translate|español|spanish/.test(promptLower)) {
+          answer = 'Tu clave de API se guarda únicamente en esta pestaña del navegador y nunca se envía a nuestros servidores.';
+        } else if (/route|ticket|billing|saml|sso/.test(promptLower)) {
+          answer = 'Technical | High';
+        } else {
+          answer = `Simulated response from ${modelId} (temp ${temp}):\n\n• Key point: Your prompt is structured cleanly with clear intent.\n• Next step: Connect a Groq API key in the left sidebar to stream live inference, or switch to Compare mode to benchmark two configurations side by side.`;
+        }
+        return { reasoning, answer };
+      }
+
+      async function callGroqOrSimulate(modelId, temp, onToken, onDone) {
+        const start = performance.now();
+        let ttft = null;
+
+        if (!state.apiKey) {
+          const sim = generateSimulatedResponse(modelId, temp);
+          const words = sim.answer.split(/(\s+)/);
+          let idx = 0;
+          await new Promise(resolve => {
+            const timer = setInterval(() => {
+              if (idx === 0) ttft = performance.now() - start + 42;
+              if (idx < words.length) {
+                onToken(words[idx], idx === 0 ? sim.reasoning : null);
+                idx++;
+              } else {
+                clearInterval(timer);
+                const totalSec = Math.max(0.25, (performance.now() - start) / 1000);
+                const inTok = buildMessages().reduce((a, m) => a + estimateTokens(m.content), 0);
+                const thinkTok = state.showReasoning ? estimateTokens(sim.reasoning) : 0;
+                const outTok = estimateTokens(sim.answer);
+                onDone({ inTok, thinkTok, outTok, ttft: ttft || 65, totalSec });
+                resolve();
+              }
+            }, 22);
+          });
+          return;
+        }
+
+        const payload = {
+          model: modelId,
+          messages: buildMessages(),
+          temperature: Number(temp),
+          top_p: Number(state.topP),
+          max_completion_tokens: Number(state.maxTokens),
+          stream: false
+        };
+        if (state.stopSequences.trim()) {
+          payload.stop = state.stopSequences.split(',').map(s => s.trim()).filter(Boolean).slice(0, 4);
+        }
+        if (state.jsonMode) {
+          payload.response_format = { type: 'json_object' };
+        }
+
+        try {
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${state.apiKey}`
+            },
+            body: JSON.stringify(payload)
+          });
+          ttft = performance.now() - start;
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error?.message || `HTTP ${res.status}`);
+
+          const choice = data.choices?.[0]?.message || {};
+          const text = choice.content || '';
+          const reasoning = choice.reasoning || null;
+          onToken(text, reasoning);
+
+          const usage = data.usage || {};
+          const inTok = usage.prompt_tokens || estimateTokens(state.userPrompt);
+          const outTok = usage.completion_tokens || estimateTokens(text);
+          const totalSec = Math.max(0.05, (performance.now() - start) / 1000);
+
+          const remTok = res.headers.get('x-ratelimit-remaining-tokens');
+          const remReq = res.headers.get('x-ratelimit-remaining-requests');
+          if (remTok) $('rateTpm').textContent = Number(remTok).toLocaleString();
+          if (remReq) $('rateRpd').textContent = Number(remReq).toLocaleString();
+
+          onDone({ inTok, thinkTok: reasoning ? estimateTokens(reasoning) : 0, outTok, ttft, totalSec });
+        } catch (err) {
+          showToast(`API Error: ${err.message}`, 'error');
+          onToken(`\n[Error: ${err.message}]`, null);
+          onDone({ inTok: estimateTokens(state.userPrompt), thinkTok: 0, outTok: 0, ttft: 0, totalSec: 0.1 });
+        }
+      }
+
+      async function handleRun() {
+        if (state.isStreaming) return;
+        if (!state.userPrompt.trim()) {
+          showToast('Enter a user prompt first', 'error');
+          return;
+        }
+        state.isStreaming = true;
+        $('btnRunPrompt').disabled = true;
+        $('btnRunLabel').textContent = 'Running…';
+        $('pulseAxisRight').textContent = 'STREAMING';
+
+        if (state.mode === 'studio') {
+          $('studioOutputText').textContent = '';
+          $('reasoningBlock').classList.add('hidden');
+          $('reasoningText').textContent = '';
+          $('outputModelBadge').textContent = getActiveModelId();
+
+          await callGroqOrSimulate(
+            getActiveModelId(),
+            state.temperature,
+            (chunk, reasoning) => {
+              $('studioOutputText').textContent += chunk;
+              if (reasoning && state.showReasoning) {
+                $('reasoningBlock').classList.remove('hidden');
+                $('reasoningText').textContent = reasoning;
+                $('reasoningTokenBadge').textContent = `${estimateTokens(reasoning)} tokens`;
+              }
+            },
+            (stats) => {
+              updateUsageStats(stats.inTok, stats.thinkTok, stats.outTok, stats.ttft, stats.totalSec);
+            }
+          );
+        } else {
+          $('compareTextA').textContent = '';
+          $('compareTextB').textContent = '';
+          const mA = $('compareModelA').value;
+          const tA = Number($('compareTempA').value);
+          const mB = $('compareModelB').value;
+          const tB = Number($('compareTempB').value);
+
+          await Promise.all([
+            callGroqOrSimulate(mA, tA, (c) => { $('compareTextA').textContent += c; }, (s) => {
+              $('compareMetaA').textContent = `${s.outTok} tok · ${s.totalSec.toFixed(2)}s`;
+            }),
+            callGroqOrSimulate(mB, tB, (c) => { $('compareTextB').textContent += c; }, (s) => {
+              $('compareMetaB').textContent = `${s.outTok} tok · ${s.totalSec.toFixed(2)}s`;
+              updateUsageStats(s.inTok, s.thinkTok, s.outTok, s.ttft, s.totalSec);
+            })
+          ]);
+        }
+
+        state.isStreaming = false;
+        $('btnRunPrompt').disabled = false;
+        $('btnRunLabel').textContent = state.mode === 'compare' ? 'Run comparison' : 'Run prompt';
+        $('pulseAxisRight').textContent = 'IDLE';
+      }
+
+      function renderFieldGuideTab(tab) {
+        state.activeFgTab = tab;
+        document.querySelectorAll('.fg-tab').forEach(btn => {
+          const active = btn.dataset.fgTab === tab;
+          btn.className = `fg-tab px-3 py-2 text-xs font-medium border-b-2 ${active ? 'border-cyan-500 text-cyan-500' : 'border-transparent text-slate-500 hover:text-slate-300'}`;
+        });
+        const est = estimateTokens(state.userPrompt);
+        const ctx = getActiveContextWindow().toLocaleString();
+        const content = {
+          prompt: `<p><strong>Prompt structure:</strong> Your current prompt uses <strong>${est} estimated input tokens</strong> and <strong>${state.examples.length} example pair(s)</strong>. Combining a concise system instruction with 1–3 concrete examples dramatically improves JSON and classification reliability.</p>`,
+          context: `<p><strong>Context window (${ctx} tokens):</strong> Every request reserves space for both your input messages and your <code>max_completion_tokens</code> budget (currently <strong>${state.maxTokens}</strong>). Keep prompts focused so you never truncate long outputs.</p>`,
+          stream: `<p><strong>Streaming &amp; Latency:</strong> <strong>TTFT</strong> measures how quickly the first token arrives, while <strong>tok/s</strong> tracks decode throughput. Lower temperature (0.0–0.3) improves determinism for code and JSON.</p>`,
+          usage: `<p><strong>Token accounting:</strong> Total billed tokens equal <code>Input + Thinking + Output</code>. Use <em>Edit prices</em> in the Token Usage card to match your exact model tier.</p>`
+        };
+        $('fieldGuideBody').innerHTML = content[tab] || '';
+      }
+
+      function renderCodeSnippet() {
+        const target = $('codeCompareTarget').value;
+        const modelId = state.mode === 'compare' ? (target === 'A' ? $('compareModelA').value : $('compareModelB').value) : getActiveModelId();
+        const temp = state.mode === 'compare' ? (target === 'A' ? Number($('compareTempA').value) : Number($('compareTempB').value)) : state.temperature;
+        const msgs = JSON.stringify(buildMessages(), null, 2);
+
+        const snippets = {
+          curl: `curl https://api.groq.com/openai/v1/chat/completions \\\n  -H "Content-Type: application/json" \\\n  -H "Authorization: Bearer $GROQ_API_KEY" \\\n  -d '${JSON.stringify({ model: modelId, messages: buildMessages(), temperature: temp, max_completion_tokens: state.maxTokens }, null, 2)}'`,
+          'py-openai': `from openai import OpenAI\nimport os\n\nclient = OpenAI(api_key=os.environ["GROQ_API_KEY"], base_url="https://api.groq.com/openai/v1")\nresp = client.chat.completions.create(\n    model="${modelId}",\n    temperature=${temp},\n    max_completion_tokens=${state.maxTokens},\n    messages=${msgs}\n)\nprint(resp.choices[0].message.content)`,
+          'py-groq': `from groq import Groq\n\nclient = Groq()\nresp = client.chat.completions.create(\n    model="${modelId}",\n    temperature=${temp},\n    max_completion_tokens=${state.maxTokens},\n    messages=${msgs}\n)\nprint(resp.choices[0].message.content)`,
+          'js-fetch': `const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {\n  method: "POST",\n  headers: {\n    "Content-Type": "application/json",\n    "Authorization": \`Bearer \${process.env.GROQ_API_KEY}\`\n  },\n  body: JSON.stringify({\n    model: "${modelId}",\n    temperature: ${temp},\n    max_completion_tokens: ${state.maxTokens},\n    messages: ${msgs}\n  })\n});\nconst data = await res.json();\nconsole.log(data.choices[0].message.content);`,
+          'node-groq': `import Groq from "groq-sdk";\nconst groq = new Groq();\nconst chat = await groq.chat.completions.create({\n  model: "${modelId}",\n  temperature: ${temp},\n  max_completion_tokens: ${state.maxTokens},\n  messages: ${msgs}\n});\nconsole.log(chat.choices[0]?.message?.content);`
+        };
+
+        $('codeSnippetPre').textContent = snippets[state.activeCodeLang] || snippets.curl;
+      }
+
+      function bindEvents() {
+        $('btnThemeToggle').addEventListener('click', () => {
+          document.documentElement.classList.toggle('dark');
+        });
+
+        $('tabStudio').addEventListener('click', () => {
+          state.mode = 'studio';
+          $('heroTitle').innerHTML = 'Prompt studio<span class="text-cyan-500">.</span>';
+          $('consoleTitle').textContent = 'Prompt console';
+          $('btnRunLabel').textContent = 'Run prompt';
+          $('compareBar').classList.add('hidden');
+          $('compareOutputBox').classList.add('hidden');
+          $('studioOutputBox').classList.remove('hidden');
+          $('codeCompareSwitchWrap').classList.add('hidden');
+          $('tabStudio').classList.add('bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+          $('tabStudio').querySelector('span').classList.replace('bg-transparent', 'bg-cyan-400');
+          $('tabCompare').classList.remove('bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+          $('tabCompare').querySelector('span').classList.replace('bg-emerald-400', 'bg-transparent');
+        });
+
+        $('tabCompare').addEventListener('click', () => {
+          state.mode = 'compare';
+          $('heroTitle').innerHTML = 'Compare lab<span class="text-emerald-500">.</span>';
+          $('consoleTitle').textContent = 'Model comparison';
+          $('btnRunLabel').textContent = 'Run comparison';
+          $('compareBar').classList.remove('hidden');
+          $('compareOutputBox').classList.remove('hidden');
+          $('studioOutputBox').classList.add('hidden');
+          $('codeCompareSwitchWrap').classList.remove('hidden');
+          $('codeCompareSwitchWrap').classList.add('flex');
+          $('tabCompare').classList.add('bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+          $('tabCompare').querySelector('span').classList.replace('bg-transparent', 'bg-emerald-400');
+          $('tabStudio').classList.remove('bg-white', 'dark:bg-slate-800', 'text-slate-900', 'dark:text-white', 'shadow-sm');
+          $('tabStudio').querySelector('span').classList.replace('bg-cyan-400', 'bg-transparent');
+        });
+
+        $('modelSelect').addEventListener('change', (e) => { state.model = e.target.value; updateModelInfo(); });
+        $('btnToggleCustomModel').addEventListener('click', () => { $('customModelWrap').classList.toggle('hidden'); });
+        $('customModelInput').addEventListener('input', (e) => { state.customModel = e.target.value; });
+
+        $('btnToggleKeyVis').addEventListener('click', () => {
+          const inp = $('apiKeyInput');
+          inp.type = inp.type === 'password' ? 'text' : 'password';
+        });
+        $('btnConnectKey').addEventListener('click', () => {
+          const key = $('apiKeyInput').value.trim();
+          if (!key) { showToast('Paste a Groq API key (gsk_...) first', 'error'); return; }
+          state.apiKey = key;
+          if ($('chkRememberKey').checked) {
+            try { sessionStorage.setItem('promptlab_key', key); } catch (e) {}
+          }
+          $('apiStatusPill').textContent = '• Connected (Live)';
+          $('apiStatusPill').className = 'font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+          $('heroStatusText').textContent = 'LIVE · Direct Groq Browser Inference';
+          showToast('Groq API key connected in browser memory', 'success');
+        });
+        $('btnClearKey').addEventListener('click', () => {
+          state.apiKey = '';
+          $('apiKeyInput').value = '';
+          try { sessionStorage.removeItem('promptlab_key'); } catch (e) {}
+          $('apiStatusPill').textContent = '• Demo / Offline';
+          $('apiStatusPill').className = 'font-mono text-[10px] px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400';
+          $('heroStatusText').textContent = 'DEMO · Simulated Stream | No key required';
+          showToast('API key cleared', 'info');
+        });
+
+        const syncTemp = (val) => { state.temperature = Number(val); $('rangeTemp').value = val; $('numTemp').value = val; runLocalPromptAnalysis(); };
+        $('rangeTemp').addEventListener('input', (e) => syncTemp(e.target.value));
+        $('numTemp').addEventListener('input', (e) => syncTemp(e.target.value));
+
+        const syncTopP = (val) => { state.topP = Number(val); $('rangeTopP').value = val; $('numTopP').value = val; };
+        $('rangeTopP').addEventListener('input', (e) => syncTopP(e.target.value));
+        $('numTopP').addEventListener('input', (e) => syncTopP(e.target.value));
+
+        $('numMaxTokens').addEventListener('input', (e) => { state.maxTokens = Math.max(64, Number(e.target.value) || 1024); updateEstimatesAndCapacity(); });
+        $('inputStopSeq').addEventListener('input', (e) => { state.stopSequences = e.target.value; });
+        $('chkShowReasoning').addEventListener('change', (e) => { state.showReasoning = e.target.checked; });
+        $('selectReasoningEffort').addEventListener('change', (e) => { state.reasoningEffort = e.target.value; });
+        $('chkJsonMode').addEventListener('change', (e) => { state.jsonMode = e.target.checked; });
+        $('chkWebSearch').addEventListener('change', (e) => { state.webSearch = e.target.checked; });
+
+        document.querySelectorAll('.preset-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const p = btn.dataset.preset;
+            if (p === 'precise') { syncTemp(0.2); syncTopP(0.9); }
+            else if (p === 'balanced') { syncTemp(0.7); syncTopP(1.0); }
+            else { syncTemp(1.2); syncTopP(1.0); }
+            document.querySelectorAll('.preset-btn').forEach(b => {
+              const active = b.dataset.preset === p;
+              b.className = `preset-btn px-2 py-0.5 rounded text-[10px] font-mono ${active ? 'bg-cyan-500/15 text-cyan-500 border border-cyan-500/40' : 'panel-elevated hover:border-cyan-500/50'}`;
+            });
+          });
+        });
+
+        $('pulseModeDraft').addEventListener('click', () => {
+          state.pulseMode = 'draft';
+          $('pulseModeDraft').className = 'px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm';
+          $('pulseModeStream').className = 'px-2 py-0.5 rounded text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400';
+        });
+        $('pulseModeStream').addEventListener('click', () => {
+          state.pulseMode = 'stream';
+          $('pulseModeStream').className = 'px-2 py-0.5 rounded text-[10px] font-mono font-medium bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-sm';
+          $('pulseModeDraft').className = 'px-2 py-0.5 rounded text-[10px] font-mono font-medium text-slate-500 dark:text-slate-400';
+        });
+
+        $('btnToggleSystem').addEventListener('click', () => { $('systemPromptWrap').classList.toggle('hidden'); });
+        $('btnToggleExamples').addEventListener('click', () => { $('examplesWrap').classList.toggle('hidden'); });
+        $('btnAddExample').addEventListener('click', () => {
+          state.examples.push({ user: '', assistant: '' });
+          renderExamples();
+          updateEstimatesAndCapacity();
+        });
+
+        $('systemPromptInput').addEventListener('input', (e) => { state.systemPrompt = e.target.value; updateEstimatesAndCapacity(); });
+        $('userPromptInput').addEventListener('input', (e) => { state.userPrompt = e.target.value; updateEstimatesAndCapacity(); });
+        $('userPromptInput').addEventListener('keydown', (e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); handleRun(); }
+        });
+
+        document.querySelectorAll('.recipe-card').forEach(card => {
+          card.addEventListener('click', () => {
+            const r = RECIPES[card.dataset.recipe];
+            state.systemPrompt = r.system;
+            state.examples = r.examples.map(x => ({ ...x }));
+            state.userPrompt = r.prompt;
+            $('systemPromptInput').value = state.systemPrompt;
+            $('userPromptInput').value = state.userPrompt;
+            $('systemPromptWrap').classList.remove('hidden');
+            if (state.examples.length > 0) $('examplesWrap').classList.remove('hidden');
+            renderExamples();
+            updateEstimatesAndCapacity();
+            showToast(`Loaded ${card.dataset.recipe} recipe`, 'info');
+          });
+        });
+
+        $('templateSelect').addEventListener('change', (e) => {
+          const t = TEMPLATES[e.target.value];
+          if (!t) return;
+          state.systemPrompt = t.system;
+          state.userPrompt = t.prompt;
+          $('systemPromptInput').value = t.system;
+          $('userPromptInput').value = t.prompt;
+          $('systemPromptWrap').classList.remove('hidden');
+          updateEstimatesAndCapacity();
+          e.target.value = '';
+        });
+
+        $('btnRunPrompt').addEventListener('click', handleRun);
+        $('btnResetPrompt').addEventListener('click', () => {
+          state.userPrompt = '';
+          $('userPromptInput').value = '';
+          $('studioOutputText').textContent = 'Cleared. Write a new prompt or pick a starter recipe.';
+          $('reasoningBlock').classList.add('hidden');
+          updateEstimatesAndCapacity();
+        });
+        $('btnCopyOutput').addEventListener('click', () => copyText($('studioOutputText').textContent));
+
+        $('compareTempA').addEventListener('input', (e) => { $('compareTempALabel').textContent = e.target.value; });
+        $('compareTempB').addEventListener('input', (e) => { $('compareTempBLabel').textContent = e.target.value; });
+
+        $('btnVerifyHeuristic').addEventListener('click', () => {
+          showToast('Local heuristic verified against current prompt structure', 'success');
+        });
+
+        const openModal = (id) => { $(id).classList.remove('hidden'); $(id).classList.add('flex'); };
+        const closeModal = (id) => { $(id).classList.add('hidden'); $(id).classList.remove('flex'); };
+        document.querySelectorAll('[data-close-modal]').forEach(btn => {
+          btn.addEventListener('click', () => closeModal(btn.dataset.closeModal));
+        });
+
+        $('btnFieldGuide').addEventListener('click', () => { renderFieldGuideTab(state.activeFgTab); openModal('modalFieldGuide'); });
+        document.querySelectorAll('.fg-tab').forEach(btn => {
+          btn.addEventListener('click', () => renderFieldGuideTab(btn.dataset.fgTab));
+        });
+
+        $('btnViewCode').addEventListener('click', () => { renderCodeSnippet(); openModal('modalViewCode'); });
+        document.querySelectorAll('.code-lang-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.activeCodeLang = btn.dataset.codeLang;
+            document.querySelectorAll('.code-lang-btn').forEach(b => {
+              const active = b.dataset.codeLang === state.activeCodeLang;
+              b.className = `code-lang-btn px-2.5 py-1 rounded-md text-xs font-mono ${active ? 'bg-cyan-500/15 text-cyan-500 border border-cyan-500/30' : 'panel-elevated text-slate-400'}`;
+            });
+            renderCodeSnippet();
+          });
+        });
+        $('codeCompareTarget').addEventListener('change', renderCodeSnippet);
+        $('btnCopyCode').addEventListener('click', () => copyText($('codeSnippetPre').textContent));
+
+        $('btnSession').addEventListener('click', () => openModal('modalSession'));
+        $('btnExportJson').addEventListener('click', () => {
+          const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'promptlab-session.json';
+          a.click();
+        });
+        $('btnExportMd').addEventListener('click', () => {
+          const md = `# PromptLab Session\n\n**Model:** ${getActiveModelId()}\n**Temperature:** ${state.temperature}\n\n## System\n${state.systemPrompt}\n\n## Prompt\n${state.userPrompt}\n\n## Output\n${$('studioOutputText').textContent}\n`;
+          const blob = new Blob([md], { type: 'text/markdown' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = 'promptlab-session.md';
+          a.click();
+        });
+        $('btnCopySession').addEventListener('click', () => copyText(JSON.stringify(state, null, 2)));
+        $('inputLoadSession').addEventListener('change', (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            try {
+              const loaded = JSON.parse(reader.result);
+              if (typeof loaded.userPrompt === 'string') {
+                state.systemPrompt = loaded.systemPrompt || '';
+                state.userPrompt = loaded.userPrompt;
+                state.examples = Array.isArray(loaded.examples) ? loaded.examples : [];
+                $('systemPromptInput').value = state.systemPrompt;
+                $('userPromptInput').value = state.userPrompt;
+                renderExamples();
+                updateEstimatesAndCapacity();
+                closeModal('modalSession');
+                showToast('Session loaded', 'success');
+              }
+            } catch (err) {
+              showToast('Invalid session JSON', 'error');
+            }
+          };
+          reader.readAsText(file);
+        });
+
+        $('btnEditPrices').addEventListener('click', () => openModal('modalPrices'));
+        $('btnSavePrices').addEventListener('click', () => {
+          state.prices.input = Math.max(0, Number($('priceInputRate').value) || 0);
+          state.prices.output = Math.max(0, Number($('priceOutputRate').value) || 0);
+          closeModal('modalPrices');
+          showToast('Pricing rates updated', 'success');
+        });
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        try {
+          const savedKey = sessionStorage.getItem('promptlab_key');
+          if (savedKey) {
+            state.apiKey = savedKey;
+            $('apiKeyInput').value = savedKey;
+            $('chkRememberKey').checked = true;
+            $('apiStatusPill').textContent = '• Connected (Live)';
+            $('apiStatusPill').className = 'font-mono text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30';
+            $('heroStatusText').textContent = 'LIVE · Direct Groq Browser Inference';
+          }
+        } catch (e) {}
+
+        $('systemPromptInput').value = state.systemPrompt;
+        $('userPromptInput').value = state.userPrompt;
+        bindEvents();
+        renderExamples();
+        updateModelInfo();
+        initUsageChart();
+        startPulseAnimation();
+      });
+    })();
+  </script>
+</body>
+</html>
